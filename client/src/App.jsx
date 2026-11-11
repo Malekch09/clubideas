@@ -1,23 +1,34 @@
 import { useState, useEffect } from 'react';
 import api from './api/axios';
 import Navbar from './components/Navbar';
+import Modal from './components/Modal';
 import AuthForm from './components/AuthForm';
 import EventForm from './components/EventForm';
 import EventCard from './components/EventCard';
+import Landing from './components/Landing';
 
 function App() {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('user');
     return saved ? JSON.parse(saved) : null;
   });
-  const [showAuth, setShowAuth] = useState(false);
   const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAuth, setShowAuth] = useState(false);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
 
-  // Load events once when the app starts
   useEffect(() => {
     const fetchEvents = async () => {
-      const { data } = await api.get('/events');
-      setEvents(data);
+      try {
+        const { data } = await api.get('/events');
+        setEvents(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchEvents();
   }, []);
@@ -37,43 +48,133 @@ function App() {
 
   const handleAddEvent = async (form) => {
     const { data } = await api.post('/events', form);
-    setEvents([...events, data]);
+    setEvents([...events, data].sort((a, b) => new Date(a.date) - new Date(b.date)));
   };
 
   const handleDeleteEvent = async (id) => {
+    if (!window.confirm('Delete this event?')) return;
     await api.delete(`/events/${id}`);
     setEvents(events.filter((e) => e._id !== id));
   };
 
-   return (
-    <div className="container">
+  // Visitor clicks "New event" -> login popup. Member -> event popup.
+  const handleAddClick = () => {
+    if (user) setShowEventForm(true);
+    else setShowAuth(true);
+  };
+
+  // ---- Derived data for stats and filters ----
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const upcomingCount = events.filter((e) => new Date(e.date) >= today).length;
+  const myCount = user ? events.filter((e) => e.author?._id === user.id).length : 0;
+
+  const visibleEvents = events
+    .filter((e) => e.title.toLowerCase().includes(search.toLowerCase()))
+    .filter((e) => {
+      if (filter === 'upcoming') return new Date(e.date) >= today;
+      if (filter === 'past') return new Date(e.date) < today;
+      return true;
+    });
+
+    return (
+    <>
       <Navbar
         user={user}
         onLogout={handleLogout}
         onShowAuth={() => setShowAuth(true)}
       />
 
-      <header className="hero">
-        <h2>Your club. Your events. Your voice.</h2>
-        <p>Discover upcoming events and tell the club what you think.</p>
-        {!user && <button onClick={() => setShowAuth(true)}>Join the club</button>}
-      </header>
+      {user ? (
+        <main className="container">
+          <section className="page-header">
+            <div>
+              <h1>Events dashboard</h1>
+              <p>Everything happening in the club, in one place.</p>
+            </div>
+            <button className="add-btn" onClick={handleAddClick}>＋ New event</button>
+          </section>
 
-      {showAuth && !user && <AuthForm onSuccess={handleLogin} />}
+          <section className="stats">
+            <div className="stat">
+              <span className="stat-number">{events.length}</span>
+              <span className="stat-label">Total events</span>
+            </div>
+            <div className="stat">
+              <span className="stat-number">{upcomingCount}</span>
+              <span className="stat-label">Upcoming</span>
+            </div>
+            <div className="stat">
+              <span className="stat-number">{myCount}</span>
+              <span className="stat-label">My events</span>
+            </div>
+          </section>
 
-      {user && <EventForm onAdd={handleAddEvent} />}
+          <section className="toolbar">
+            <input
+              className="search"
+              placeholder="🔍 Search events..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <div className="tabs">
+              {['all', 'upcoming', 'past'].map((f) => (
+                <button
+                  key={f}
+                  className={filter === f ? 'tab active' : 'tab'}
+                  onClick={() => setFilter(f)}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </section>
 
-      <h2 className="section-title">Upcoming events</h2>
-      {events.length === 0 && <p className="meta">No events yet.</p>}
-      {events.map((event) => (
-        <EventCard
-          key={event._id}
-          event={event}
-          user={user}
-          onDelete={handleDeleteEvent}
+          {loading && (
+            <p className="meta">Loading events... (the server may take a few seconds to wake up)</p>
+          )}
+
+          {!loading && visibleEvents.length === 0 && (
+            <div className="empty">
+              <p>No events found.</p>
+            </div>
+          )}
+
+          <section className="grid">
+            {visibleEvents.map((event) => (
+              <EventCard
+                key={event._id}
+                event={event}
+                user={user}
+                onDelete={handleDeleteEvent}
+              />
+            ))}
+          </section>
+        </main>
+      ) : (
+        <Landing
+          events={events}
+          loading={loading}
+          onShowAuth={() => setShowAuth(true)}
         />
-      ))}
-    </div>
+      )}
+
+      {showAuth && !user && (
+        <Modal title="Welcome to ClubIdeas" onClose={() => setShowAuth(false)}>
+          <AuthForm onSuccess={handleLogin} />
+        </Modal>
+      )}
+
+      {showEventForm && user && (
+        <Modal title="New event" onClose={() => setShowEventForm(false)}>
+          <EventForm
+            onAdd={handleAddEvent}
+            onDone={() => setShowEventForm(false)}
+          />
+        </Modal>
+      )}
+    </>
   );
 }
 

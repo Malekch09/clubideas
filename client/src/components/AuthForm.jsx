@@ -23,8 +23,8 @@ function AuthForm({ onSuccess }) {
   };
 
   return (
-    <div className="card">
-      <h2>{isLogin ? 'Login' : 'Register'}</h2>
+    <div>
+    
       <form onSubmit={handleSubmit}>
         {!isLogin && (
           <input
