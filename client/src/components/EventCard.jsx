@@ -3,7 +3,7 @@ import FeedbackSection from './FeedbackSection';
 
 function EventCard({ event, user, onDelete }) {
   const [showFeedbacks, setShowFeedbacks] = useState(false);
-
+    if (!event) return null;
   const isOwner = user && user.id === event.author?._id;
 
   const d = new Date(event.date);

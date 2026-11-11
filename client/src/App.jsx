@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, useCallback } from 'react';
 import api from './api/axios';
 import Navbar from './components/Navbar';
 import Modal from './components/Modal';
@@ -19,19 +20,20 @@ function App() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const { data } = await api.get('/events');
-        setEvents(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEvents();
+  const fetchEvents = useCallback(async () => {
+    try {
+      const { data } = await api.get('/events');
+      setEvents(Array.isArray(data) ? data.filter(Boolean) : []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
 
   const handleLogin = (data) => {
     localStorage.setItem('token', data.token);
@@ -47,8 +49,8 @@ function App() {
   };
 
   const handleAddEvent = async (form) => {
-    const { data } = await api.post('/events', form);
-    setEvents([...events, data].sort((a, b) => new Date(a.date) - new Date(b.date)));
+    await api.post('/events', form);
+    await fetchEvents();
   };
 
   const handleDeleteEvent = async (id) => {
@@ -78,7 +80,7 @@ function App() {
       return true;
     });
 
-    return (
+  return (
     <>
       <Navbar
         user={user}

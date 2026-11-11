@@ -1,54 +1,69 @@
 import { useState } from 'react';
-import FeedbackSection from './FeedbackSection';
 
-function EventCard({ event, user, onDelete }) {
-  const [showFeedbacks, setShowFeedbacks] = useState(false);
+function EventForm({ onAdd, onDone }) {
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    date: '',
+    location: 'Campus',
+  });
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const isOwner = user && user.id === event.author?._id;
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  const d = new Date(event.date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const isPast = d < today;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
 
-  const day = d.getDate();
-  const month = d.toLocaleDateString('en-US', { month: 'short' });
+    try {
+      await onAdd(form);
+      onDone();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not create the event. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <article className="event-card">
-      <div className="event-top">
-        <div className="date-badge">
-          <span className="day">{day}</span>
-          <span className="month">{month}</span>
-        </div>
-        <div className="event-title">
-          <h3>{event.title}</h3>
-          <p className="meta">📍 {event.location}</p>
-        </div>
-        <span className={isPast ? 'badge past' : 'badge upcoming'}>
-          {isPast ? 'Past' : 'Upcoming'}
-        </span>
-      </div>
-
-      <p className="event-desc">{event.description}</p>
-
-      <div className="event-footer">
-        <span className="author">👤 {event.author?.name}</span>
-        <div className="actions">
-          <button className="secondary" onClick={() => setShowFeedbacks(!showFeedbacks)}>
-            {showFeedbacks ? 'Hide' : '💬 Feedbacks'}
-          </button>
-          {isOwner && (
-            <button className="danger" onClick={() => onDelete(event._id)}>
-              Delete
-            </button>
-          )}
-        </div>
-      </div>
-
-      {showFeedbacks && <FeedbackSection eventId={event._id} user={user} />}
-    </article>
+    <form onSubmit={handleSubmit}>
+      <input
+        name="title"
+        placeholder="Event title"
+        value={form.title}
+        onChange={handleChange}
+        required
+      />
+      <textarea
+        name="description"
+        placeholder="Description"
+        value={form.description}
+        onChange={handleChange}
+        required
+      />
+      <input
+        name="date"
+        type="date"
+        value={form.date}
+        onChange={handleChange}
+        required
+      />
+      <input
+        name="location"
+        placeholder="Location"
+        value={form.location}
+        onChange={handleChange}
+      />
+      {error && <p className="error">{error}</p>}
+      <button type="submit" disabled={submitting}>
+        {submitting ? 'Creating event...' : 'Create event'}
+      </button>
+    </form>
   );
 }
 
-export default EventCard;
+export default EventForm;
